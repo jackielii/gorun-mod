@@ -17,15 +17,16 @@ func main() {
 		os.Exit(1)
 	}
 	fp := try1(filepath.Abs(args[0]))
-
-	td := try1(os.MkdirTemp("", "gorun-mod"))
-	sh(td, "cp %s %s", fp, td)
-
 	ext := filepath.Ext(fp)
 	base := filepath.Base(fp)
-	fn := base[:len(base)-len(ext)]
+	module := base[:len(base)-len(ext)]
 
-	sh(td, "go mod init %s", fn)
+	td := try1(os.MkdirTemp("", "gorun-mod"))
+	source := try1(os.ReadFile(fp))
+	source = bytes.Replace(source, []byte("//go:build ignore\n"), nil, 1)
+	try0(os.WriteFile(filepath.Join(td, base), source, 0644))
+
+	sh(td, "go mod init %s", module)
 	sh(td, "go mod tidy")
 
 	for _, m := range []string{"go.mod", "go.sum"} {
@@ -33,9 +34,9 @@ func main() {
 		if _, err := os.Stat(fp); err != nil {
 			continue
 		}
-		content := try1(os.ReadFile(fp))
+		mod := try1(os.ReadFile(fp))
 		fmt.Printf("// %s >>>\n", m)
-		for _, line := range bytes.Split(content, []byte("\n")) {
+		for _, line := range bytes.Split(mod, []byte("\n")) {
 			if len(line) != 0 {
 				fmt.Println("// " + string(line))
 			}
@@ -55,6 +56,12 @@ func sh(cwd string, format string, args ...any) string {
 		log.Fatal(err)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func try0(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func try1[T any](v T, err error) T {
